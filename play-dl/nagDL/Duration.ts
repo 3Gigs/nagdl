@@ -31,7 +31,7 @@ export class Duration {
     }
 
     get durationFormatted(): string {
-        return this.durationFormatted;
+        return this._durationFormatted;
     }
 
     /**
