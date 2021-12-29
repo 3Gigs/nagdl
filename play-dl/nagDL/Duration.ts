@@ -6,7 +6,6 @@ export class Duration {
     _hours: number = 0;
     _minutes: number = 0;
     _seconds: number = 0;
-    _durationFormatted: string;
 
     public constructor();
     public constructor(seconds: number);
@@ -16,7 +15,6 @@ export class Duration {
         this._hours =  hours;
         this.setMinutes(minutes);
         this.setSeconds(seconds);
-        this._durationFormatted = Duration.formatDuration(seconds, minutes, hours)
     }
 
     get hours(): number {
