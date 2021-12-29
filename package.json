@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsup",
     "build:check": "tsc --noEmit --incremental false",
-    "pretty": "prettier --config .prettierrc \"play-dl/*.ts\" \"play-dl/*/*.ts\" \"play-dl/*/*/*.ts\" --write ",
+    "pretty": "prettier --config .prettierrc \"nagdl/*.ts\" \"nagdl/*/*.ts\" \"nagdl/*/*/*.ts\" --write ",
     "prepublishOnly": "tsup"
   },
   "repository": {
