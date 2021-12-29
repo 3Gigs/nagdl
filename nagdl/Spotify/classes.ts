@@ -125,7 +125,7 @@ export class SpotifyTrack implements Song {
     /**
      * nagDL: Spotify author(s) 
      */
-    author?: string;
+    author: string;
 
     /**
      * Spotify Track Album data
@@ -159,6 +159,7 @@ export class SpotifyTrack implements Song {
         this.durationInSec = Math.round(this.durationInMs / 1000);
         this.duration = new Duration(this.durationInSec);
         const artists: SpotifyArtists[] = [];
+        this.author = "";
         data.artists.forEach((v: any) => {
             /**nagDL: Set author */
             this.author += v.name + ", "
@@ -169,7 +170,7 @@ export class SpotifyTrack implements Song {
             });
         });
         // Remove the last ", "
-        this.author = this.author?.substr(0, this.author.length - 2);
+        this.author = this.author.substr(0, this.author.length - 2);
         this.artists = artists;
         if (!data.album?.name) this.album = undefined;
         else {

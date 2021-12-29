@@ -88,7 +88,7 @@ export class YouTubeVideo implements Song {
     /**
      * YouTube Video title
      */
-    title?: string;
+    title: string;
     /**
      * YouTube Video description.
      */
@@ -140,7 +140,7 @@ export class YouTubeVideo implements Song {
     /**
      * nagDL: The YouTube channel name
      */
-    author?: string;
+    author: string;
 
     /**
      * `true` if the video has been identified by the YouTube community as inappropriate or offensive to some audiences and viewer discretion is advised
@@ -156,7 +156,7 @@ export class YouTubeVideo implements Song {
         this.id = data.id || undefined;
         this.url = `https://www.youtube.com/watch?v=${this.id}`;
         this.type = 'video';
-        this.title = data.title || undefined;
+        this.title = data.title || "Unnamed Track";
         this.description = data.description || undefined;
         this.durationRaw = data.duration_raw || '0:00';
         this.durationInSec = (data.duration < 0 ? 0 : data.duration) || 0;
@@ -169,7 +169,7 @@ export class YouTubeVideo implements Song {
         }
         this.thumbnails = thumbnails || [];
         this.channel = new YouTubeChannel(data.channel) || {};
-        this.author = this.channel.name;
+        this.author = this.channel.name ? this.channel.name : "No Author";
         this.likes = data.likes || 0;
         this.live = !!data.live;
         this.private = !!data.private;

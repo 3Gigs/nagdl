@@ -98,6 +98,12 @@ export class SoundCloudTrack implements Song {
      * SoundCloud Track Name
      */
     name: string;
+
+    /**
+     * nagdl: SoundCloud Track Name;
+     */
+    title: string;
+
     /**
      * SoundCloud Track ID
      */
@@ -162,6 +168,7 @@ export class SoundCloudTrack implements Song {
      */
     constructor(data: any) {
         this.name = data.title;
+        this.title = this.name;
         this.id = data.id;
         this.url = data.uri;
         this.fetched = true;
