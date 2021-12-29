@@ -1,21 +1,20 @@
 /**
  * A song duration implementation
+ * 
  */
 export class Duration {
     _hours: number = 0;
     _minutes: number = 0;
     _seconds: number = 0;
-    _durationFormatted: string;
 
     public constructor();
     public constructor(seconds: number);
     public constructor(seconds: number, minutes: number);
     public constructor(seconds: number, minutes: number, hours: number);
     public constructor(seconds = 0, minutes = 0, hours = 0) {
-        this._seconds = seconds;
-        this._minutes = minutes;
-        this._hours = hours;
-        this._durationFormatted = Duration.formatDuration(seconds, minutes, hours)
+        this._hours =  hours;
+        this.setMinutes(minutes);
+        this.setSeconds(seconds);
     }
 
     get hours(): number {
@@ -31,7 +30,7 @@ export class Duration {
     }
 
     get durationFormatted(): string {
-        return this._durationFormatted;
+        return Duration.formatDuration(this._seconds, this._minutes, this._hours);
     }
 
     /**
@@ -39,22 +38,26 @@ export class Duration {
      *
      * @remarks
      * If the parameter is outside the (0-60) range, ```setSeconds()``` attempts
-     * to update the Duration object accordingly
+     * to update the Duration object accordingly. Note that while negative 
+     * seconds are allowed, it may cause unintended side effects
      *
      * @param sec The seconds specified
      * @returns The number of seconds
      */
     public setSeconds(sec: number): number {
-        if (this._seconds >= 0 && this._seconds < 60) {
-            return this._seconds;
+        let min = this._minutes;
+        while(sec < 0 || sec >= 60)
+        {
+            if (sec >= 60) {
+                this.setMinutes(++min);
+                sec -= 60;
+            } else {
+                this.setMinutes(--min);
+                sec += 60;
+            }
         }
-        if (this._seconds >= 60) {
-            this._minutes++;
-            return this.setSeconds(sec - 60);
-        } else {
-            this._minutes--;
-            return this.setSeconds(sec + 60);
-        }
+        this._seconds = sec;
+        return sec;
     }
 
     /**
@@ -68,16 +71,19 @@ export class Duration {
      * @returns The number of minutes
      */
     public setMinutes(min: number): number {
-        if (this._minutes >= 0 && this._seconds < 60) {
-            return this._minutes;
+        while(min < 0 || min >= 60)
+        {
+            console.log("Minutes: " + min);
+            if (min >= 60) {
+                this._hours++;
+                min -= 60;
+            } else {
+                this._hours--;
+                min += 60;
+            }
         }
-        if (this._minutes >= 60) {
-            this._hours++;
-            return this.setMinutes(min - 60);
-        } else {
-            this._hours--;
-            return this.setMinutes(min + 60);
-        }
+        this._minutes = min;
+        return min;
     }
 
     public static formatDuration(seconds: number, minutes: number, hours?: number): string {
@@ -87,25 +93,15 @@ export class Duration {
             result += hours + ":";
         }
 
-        if(minutes) {
-            result += minutes + ":";
-        }
-        else if(minutes < 10) {
+        if(minutes < 10) {
             result += "0";
         }
-        else {
-            result += minutes + ":";
-        }
+        result += minutes + ":";
 
-        if(seconds) {
-            result += seconds + ":";
-        }
-        else if(seconds < 10) {
+        if(seconds < 10) {
             result += "0";
         }
-        else {
-            result += seconds;
-        }
+        result += seconds;
 
         return result
     }
