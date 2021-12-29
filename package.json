@@ -9,10 +9,10 @@
     "example": "examples"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "npx tsup",
     "build:check": "tsc --noEmit --incremental false",
     "pretty": "prettier --config .prettierrc \"nagdl/*.ts\" \"nagdl/*/*.ts\" \"nagdl/*/*/*.ts\" --write ",
-    "prepublishOnly": "tsup"
+    "prepublishOnly": "npx tsup"
   },
   "repository": {
     "type": "git",

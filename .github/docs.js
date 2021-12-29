@@ -1,6 +1,6 @@
 const fs = require('fs')
 
-const path = "play-dl/index.ts"
+const path = "nagdl/index.ts"
 
 if(!fs.existsSync(path)) {
     console.log('File Missing')
