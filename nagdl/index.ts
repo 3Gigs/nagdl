@@ -478,6 +478,7 @@ export {
     SpotifyAlbum,
     SpotifyPlaylist,
     SpotifyTrack,
+    YouTubeStream,
     YouTubeChannel,
     YouTubePlayList,
     YouTubeVideo,
