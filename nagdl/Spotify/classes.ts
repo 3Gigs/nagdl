@@ -343,10 +343,14 @@ export class SpotifyPlaylist {
      * @param num Page Number
      * @returns
      */
-    page(num: number) {
+    page(num: number): SpotifyTrack[] {
         if (!num) throw new Error('Page number is not provided');
         if (!this.fetched_tracks.has(`${num}`)) throw new Error('Given Page number is invalid');
-        return this.fetched_tracks.get(`${num}`) as SpotifyTrack[];
+	const tracks = this.fetched_tracks.get(`${num}`);
+	if(tracks)
+	    return tracks;
+	throw new Error('Invalid track!');
+	
     }
     /**
      * Spotify Playlist total no of pages in a playlist
@@ -542,7 +546,7 @@ export class SpotifyAlbum {
      * @param num Page Number
      * @returns
      */
-    page(num: number) {
+    page(num: number): Array<SpotifyTrack> {
         if (!num) throw new Error('Page number is not provided');
         if (!this.fetched_tracks.has(`${num}`)) throw new Error('Given Page number is invalid');
         return this.fetched_tracks.get(`${num}`);
