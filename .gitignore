@@ -4,4 +4,3 @@ examples/node_modules
 examples/package-lock.json
 examples/package.json
 *.tgz
-*log*
