@@ -5,9 +5,9 @@ import { Duration } from "./Duration";
  */
 export interface Song {
     url: string;
-    duration: Duration;
-    title: string;
-    author: string;
+    duration?: Duration;
+    title?: string;
+    author?: string;
     albumName?: string;
     thumbnailUrl?: string;
 }
