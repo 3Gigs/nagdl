@@ -88,7 +88,7 @@ export class YouTubeVideo implements Song {
     /**
      * YouTube Video title
      */
-    title: string;
+    title?: string;
     /**
      * YouTube Video description.
      */
