@@ -23,29 +23,29 @@ const WEB_ELEMENT_KEYS = Object.keys(WebmElements);
 export class WebmSeeker extends Duplex {
     remaining?: Buffer;
     state: WebmSeekerState;
-    mode: 'precise' | 'granular';
     chunk?: Buffer;
     cursor: number;
     header: WebmHeader;
     headfound: boolean;
     headerparsed: boolean;
-    time_left: number;
     seekfound: boolean;
     private data_size: number;
     private data_length: number;
+    private sec: number;
+    private time: number;
 
-    constructor(options: WebmSeekerOptions) {
+    constructor(sec: number, options: WebmSeekerOptions) {
         super(options);
         this.state = WebmSeekerState.READING_HEAD;
         this.cursor = 0;
         this.header = new WebmHeader();
         this.headfound = false;
-        this.time_left = 0;
         this.headerparsed = false;
         this.seekfound = false;
         this.data_length = 0;
-        this.mode = options.mode || 'granular';
         this.data_size = 0;
+        this.sec = sec;
+        this.time = Math.floor(sec / 10) * 10;
     }
 
     private get vint_length(): number {
@@ -75,20 +75,22 @@ export class WebmSeeker extends Duplex {
 
     _read() {}
 
-    seek(sec: number): Error | number {
-        let position = 0;
-        const time = Math.floor(sec / 10) * 10;
-        this.time_left = (sec - time) * 1000 || 0;
+    seek(): Error | number {
+        let clusterlength = 0,
+            position = 0;
+        let time_left = (this.sec - this.time) * 1000 || 0;
+        time_left = Math.round(time_left / 20) * 20;
         if (!this.header.segment.cues) return new Error('Failed to Parse Cues');
 
-        for (const data of this.header.segment.cues) {
-            if (Math.floor((data.time as number) / 1000) === time) {
+        for (let i = 0; i < this.header.segment.cues.length; i++) {
+            const data = this.header.segment.cues[i];
+            if (Math.floor((data.time as number) / 1000) === this.time) {
                 position = data.position as number;
+                clusterlength = this.header.segment.cues[i + 1].position! - position - 1;
                 break;
             } else continue;
         }
-        if (position === 0) return new Error('Failed to find Cluster Position');
-        else return position;
+        return Math.round(position + (time_left / 20) * (clusterlength / 500));
     }
 
     _write(chunk: Buffer, _: BufferEncoding, callback: (error?: Error | null) => void): void {
@@ -100,7 +102,7 @@ export class WebmSeeker extends Duplex {
         let err: Error | undefined;
 
         if (this.state === WebmSeekerState.READING_HEAD) err = this.readHead();
-        else if (!this.seekfound) err = this.getClosestCluster();
+        else if (!this.seekfound) err = this.getClosestBlock();
         else err = this.readTag();
 
         if (err) callback(err);
@@ -137,6 +139,13 @@ export class WebmSeeker extends Duplex {
             );
             const parse = this.header.parse(ebmlID, data);
             if (parse instanceof Error) return parse;
+
+            // stop parsing the header once we have found the correct cue
+            if (
+                ebmlID.name === 'cueClusterPosition' &&
+                this.time === (this.header.segment.cues!.at(-1)!.time as number) / 1000
+            )
+                this.emit('headComplete');
 
             if (ebmlID.type === DataType.master) {
                 this.cursor += this.data_size;
@@ -190,10 +199,6 @@ export class WebmSeeker extends Duplex {
             } else this.cursor += this.data_size + this.data_length;
 
             if (ebmlID.name === 'simpleBlock') {
-                if (this.time_left !== 0 && this.mode === 'precise') {
-                    if (data.readUInt16BE(1) === this.time_left) this.time_left = 0;
-                    else continue;
-                }
                 const track = this.header.segment.tracks![this.header.audioTrack];
                 if (!track || track.trackType !== 2) return new Error('No audio Track in this webm file.');
                 if ((data[0] & 0xf) === track.trackNumber) this.push(data.slice(4));
@@ -203,11 +208,29 @@ export class WebmSeeker extends Duplex {
         this.cursor = 0;
     }
 
-    private getClosestCluster(): Error | undefined {
+    private getClosestBlock(): Error | undefined {
         if (!this.chunk) return new Error('Chunk is missing');
-        const count = this.chunk.indexOf('1f43b675', 0, 'hex');
-        if (count === -1) throw new Error('Failed to find nearest Cluster.');
-        else this.chunk = this.chunk.slice(count);
+        this.cursor = 0;
+        let positionFound = false;
+        while (!positionFound && this.cursor < this.chunk.length) {
+            this.cursor = this.chunk.indexOf('a3', this.cursor, 'hex');
+            if (this.cursor === -1) return new Error('Failed to find nearest Block.');
+            this.cursor++;
+            if (!this.vint_value()) return new Error('Failed to find correct simpleBlock in first chunk');
+            if (this.cursor + this.data_length + this.data_length > this.chunk.length) continue;
+            const data = this.chunk.slice(
+                this.cursor + this.data_size,
+                this.cursor + this.data_size + this.data_length
+            );
+            const track = this.header.segment.tracks![this.header.audioTrack];
+            if (!track || track.trackType !== 2) return new Error('No audio Track in this webm file.');
+            if ((data[0] & 0xf) === track.trackNumber) {
+                this.cursor += this.data_size + this.data_length;
+                this.push(data.slice(4));
+                positionFound = true;
+            } else continue;
+        }
+        if (!positionFound) return new Error('Failed to find nearest correct simple Block.');
         this.seekfound = true;
         return this.readTag();
     }

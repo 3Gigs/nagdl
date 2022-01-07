@@ -197,9 +197,31 @@ export async function video_basic_info(url: string, options: InfoOptions = {}): 
         (res: any) => {
             if (res.compactVideoRenderer)
                 related.push(`https://www.youtube.com/watch?v=${res.compactVideoRenderer.videoId}`);
+            if (res.itemSectionRenderer?.contents)
+                res.itemSectionRenderer.contents.forEach((x: any) => {
+                    if (x.compactVideoRenderer)
+                        related.push(`https://www.youtube.com/watch?v=${x.compactVideoRenderer.videoId}`);
+                });
         }
     );
     const microformat = player_response.microformat.playerMicroformatRenderer;
+    const musicInfo =
+        initial_response.contents.twoColumnWatchNextResults.results.results.contents?.[1]?.videoSecondaryInfoRenderer
+            ?.metadataRowContainer?.metadataRowContainerRenderer?.rows;
+    const music: any[] = [];
+    if (musicInfo) {
+        musicInfo.forEach((x: any) => {
+            if (!x.metadataRowRenderer) return;
+            if (x.metadataRowRenderer.title.simpleText.toLowerCase() === 'song') {
+                music.push({});
+                music[music.length - 1].song =
+                    x.metadataRowRenderer.contents[0].simpleText ?? x.metadataRowRenderer.contents[0]?.runs?.[0]?.text;
+            } else if (music.length === 0) return;
+            else
+                music[music.length - 1][x.metadataRowRenderer.title.simpleText.toLowerCase()] =
+                    x.metadataRowRenderer.contents[0].simpleText ?? x.metadataRowRenderer.contents[0]?.runs?.[0]?.text;
+        });
+    }
     const video_details = new YouTubeVideo({
         id: vid.videoId,
         title: vid.title,
@@ -228,7 +250,8 @@ export async function video_basic_info(url: string, options: InfoOptions = {}): 
         ),
         live: vid.isLiveContent,
         private: vid.isPrivate,
-        discretionAdvised
+        discretionAdvised,
+        music
     });
     const format = player_response.streamingData.formats ?? [];
     format.push(...(player_response.streamingData.adaptiveFormats ?? []));
@@ -535,6 +558,7 @@ async function acceptViewerDiscretion(
             },
             setControvercy: true
         }),
+        cookies: true,
         cookieJar
     });
 
@@ -549,6 +573,7 @@ async function acceptViewerDiscretion(
             ['command', JSON.stringify(endpoint)],
             ['session_token', sessionToken]
         ]).toString(),
+        cookies: true,
         cookieJar
     });
 
