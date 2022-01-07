@@ -13,6 +13,10 @@ interface VideoOptions {
      */
     url: string;
     /**
+     * YouTube Video title
+     */
+    title?: string;
+    /**
      * YouTube Video description.
      */
     description?: string;
