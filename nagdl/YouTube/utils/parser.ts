@@ -2,11 +2,22 @@ import { YouTubeVideo } from '../classes/Video';
 import { YouTubePlayList } from '../classes/Playlist';
 import { YouTubeChannel } from '../classes/Channel';
 import { YouTube } from '..';
+import { YouTubeThumbnail } from '../classes/Thumbnail';
+
+const BLURRED_THUMBNAILS = [
+    '-oaymwEpCOADEI4CSFryq4qpAxsIARUAAAAAGAElAADIQj0AgKJDeAHtAZmZGUI=',
+    '-oaymwEiCOADEI4CSFXyq4qpAxQIARUAAIhCGAFwAcABBu0BmZkZQg==',
+    '-oaymwEiCOgCEMoBSFXyq4qpAxQIARUAAIhCGAFwAcABBu0BZmbmQQ==',
+    '-oaymwEiCNAFEJQDSFXyq4qpAxQIARUAAIhCGAFwAcABBu0BZmZmQg==',
+    '-oaymwEdCNAFEJQDSFryq4qpAw8IARUAAIhCGAHtAWZmZkI=',
+    '-oaymwEdCNACELwBSFryq4qpAw8IARUAAIhCGAHtAT0K10E='
+];
 
 export interface ParseSearchInterface {
     type?: 'video' | 'playlist' | 'channel';
     limit?: number;
     language?: string;
+    unblurNSFWThumbnails?: boolean;
 }
 
 export interface thumbnail {
@@ -25,6 +36,7 @@ export function ParseSearchResult(html: string, options?: ParseSearchInterface):
     if (!options) options = { type: 'video', limit: 0 };
     else if (!options.type) options.type = 'video';
     const hasLimit = typeof options.limit === 'number' && options.limit > 0;
+    options.unblurNSFWThumbnails ??= false;
 
     const data = html
         .split('var ytInitialData = ')?.[1]
@@ -41,7 +53,10 @@ export function ParseSearchResult(html: string, options?: ParseSearchInterface):
         switch (options.type) {
             case 'video': {
                 const parsed = parseVideo(detail);
-                if (parsed) results.push(parsed);
+                if (parsed) {
+                    if (options.unblurNSFWThumbnails) parsed.thumbnails.forEach(unblurThumbnail);
+                    results.push(parsed);
+                }
                 break;
             }
             case 'channel': {
@@ -51,7 +66,10 @@ export function ParseSearchResult(html: string, options?: ParseSearchInterface):
             }
             case 'playlist': {
                 const parsed = parsePlaylist(detail);
-                if (parsed) results.push(parsed);
+                if (parsed) {
+                    if (options.unblurNSFWThumbnails && parsed.thumbnail) unblurThumbnail(parsed.thumbnail);
+                    results.push(parsed);
+                }
                 break;
             }
             default:
@@ -146,6 +164,9 @@ export function parseVideo(data?: any): YouTubeVideo {
             artist: Boolean(badge?.includes('artist'))
         },
         uploadedAt: data.videoRenderer.publishedTimeText?.simpleText ?? null,
+        upcoming: data.videoRenderer.upcomingEventData?.startTime
+            ? new Date(parseInt(data.videoRenderer.upcomingEventData.startTime) * 1000)
+            : undefined,
         views: data.videoRenderer.viewCountText?.simpleText?.replace(/\D/g, '') ?? 0,
         live: durationText ? false : true
     });
@@ -185,4 +206,37 @@ export function parsePlaylist(data?: any): YouTubePlayList {
     );
 
     return res;
+}
+
+function unblurThumbnail(thumbnail: YouTubeThumbnail) {
+    if (BLURRED_THUMBNAILS.find((sqp) => thumbnail.url.includes(sqp))) {
+        thumbnail.url = thumbnail.url.split('?')[0];
+
+        // we need to update the size parameters as the sqp parameter also included a cropped size
+        switch (thumbnail.url.split('/').at(-1)!.split('.')[0]) {
+            case 'hq2':
+            case 'hqdefault':
+                thumbnail.width = 480;
+                thumbnail.height = 360;
+                break;
+            case 'hq720':
+                thumbnail.width = 1280;
+                thumbnail.height = 720;
+                break;
+            case 'sddefault':
+                thumbnail.width = 640;
+                thumbnail.height = 480;
+                break;
+            case 'mqdefault':
+                thumbnail.width = 320;
+                thumbnail.height = 180;
+                break;
+            case 'default':
+                thumbnail.width = 120;
+                thumbnail.height = 90;
+                break;
+            default:
+                thumbnail.width = thumbnail.height = NaN;
+        }
+    }
 }
