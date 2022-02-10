@@ -68,6 +68,11 @@ interface SearchOptions {
     };
     fuzzy?: boolean;
     language?: string;
+    /**
+     * !!! Before enabling this for public servers, please consider using Discord features like NSFW channels as not everyone in your server wants to see NSFW images. !!!
+     * Unblurred images will likely have different dimensions than specified in the {@link YouTubeThumbnail} objects.
+     */
+    unblurNSFWThumbnails?: boolean;
 }
 
 import { createInterface } from 'node:readline';
@@ -101,6 +106,7 @@ async function stream(url: string, options?: StreamOptions): Promise<YouTubeStre
  *  - `number` quality : Quality number. [ 0 = Lowest, 1 = Medium, 2 = Highest ]
  *  - `boolean` htmldata : given data is html data or not
  *  - `number` precache : No of segments of data to store before looping [YouTube Live Stream only]. [ Defaults to 3 ]
+ *  - `boolean` discordPlayerCompatibility : Conversion of Webm to Opus [ Defaults to false ]
  * @returns A {@link YouTubeStream} or {@link SoundCloudStream} Stream to play
  */
 async function stream(url: string, options: StreamOptions = {}): Promise<YouTubeStream | SoundCloudStream> {
@@ -184,6 +190,9 @@ async function search(query: string, options?: SearchOptions): Promise<YouTubeVi
  * 
  *  - `number` limit : No of searches you want to have.
  *  - `string` language : Sets language of searched content [ YouTube search only. ], e.g. "en-US"
+ *  - `boolean` unblurNSFWThumbnails : Unblurs NSFW thumbnails. Defaults to `false` [ YouTube search only. ]
+ *              !!! Before enabling this for public servers, please consider using Discord features like NSFW channels as not everyone in your server wants to see NSFW images. !!!
+ *              Unblurred images will likely have different dimensions than specified in the {@link YouTubeThumbnail} objects.
  *  - `boolean` fuzzy : Whether the search should be fuzzy or only return exact matches. Defaults to `true`. [ for `Deezer` Only ]
  *  - `Object` source : Contains type of source and type of result you want to have
  * ```ts
@@ -204,7 +213,8 @@ async function search(
         return await yt_search(query, {
             limit: options.limit,
             type: options.source.youtube,
-            language: options.language
+            language: options.language,
+            unblurNSFWThumbnails: options.unblurNSFWThumbnails
         });
     else if (options.source.spotify) return await sp_search(query, options.source.spotify, options.limit);
     else if (options.source.soundcloud) return await so_search(query, options.source.soundcloud, options.limit);
@@ -240,6 +250,7 @@ async function stream_from_info(info: InfoData, options?: StreamOptions): Promis
  *  - `number` quality : Quality number. [ 0 = Lowest, 1 = Medium, 2 = Highest ]
  *  - `boolean` htmldata : given data is html data or not
  *  - `number` precache : No of segments of data to store before looping [YouTube Live Stream only]. [ Defaults to 3 ]
+ *  - `boolean` discordPlayerCompatibility : Conversion of Webm to Opus[ Defaults to false ]
  * @returns A {@link YouTubeStream} or {@link SoundCloudStream} Stream to play
  */
 async function stream_from_info(

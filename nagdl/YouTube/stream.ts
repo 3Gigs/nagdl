@@ -19,6 +19,7 @@ export interface StreamOptions {
     language?: string;
     htmldata?: boolean;
     precache?: number;
+    discordPlayerCompatibility?: boolean;
 }
 
 /**
@@ -62,6 +63,9 @@ export async function stream_from_info(
     info: InfoData | StreamInfoData,
     options: StreamOptions = {}
 ): Promise<YouTubeStream> {
+    if (info.format.length === 0)
+        throw new Error('Upcoming and premiere videos that are not currently live cannot be streamed.');
+
     const final: any[] = [];
     if (
         info.LiveStreamData.isLive === true &&
@@ -85,10 +89,11 @@ export async function stream_from_info(
     let type: StreamType =
         final[0].codec === 'opus' && final[0].container === 'webm' ? StreamType.WebmOpus : StreamType.Arbitrary;
     await request_stream(`https://${new URL(final[0].url).host}/generate_204`);
-    if (options.seek) {
-        if (type === StreamType.WebmOpus) {
-            if (options.seek >= info.video_details.durationInSec || options.seek <= 0)
-                throw new Error(`Seeking beyond limit. [ 1 - ${info.video_details.durationInSec - 1}]`);
+    if (type === StreamType.WebmOpus) {
+        if (!options.discordPlayerCompatibility) {
+            options.seek ??= 0;
+            if (options.seek >= info.video_details.durationInSec || options.seek < 0)
+                throw new Error(`Seeking beyond limit. [ 0 - ${info.video_details.durationInSec - 1}]`);
             return new SeekStream(
                 final[0].url,
                 info.video_details.durationInSec,
@@ -97,14 +102,14 @@ export async function stream_from_info(
                 info.video_details.url,
                 options
             );
-        } else throw new Error('Seek is only supported in Webm Opus Files.');
-    } else
-        return new Stream(
-            final[0].url,
-            type,
-            info.video_details.durationInSec,
-            Number(final[0].contentLength),
-            info.video_details.url,
-            options
-        );
+        } else if (options.seek) throw new Error('Can not seek with discordPlayerCompatibility set to true.');
+    }
+    return new Stream(
+        final[0].url,
+        type,
+        info.video_details.durationInSec,
+        Number(final[0].contentLength),
+        info.video_details.url,
+        options
+    );
 }

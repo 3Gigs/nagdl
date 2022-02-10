@@ -4,6 +4,7 @@ import { YouTubeVideo } from '../classes/Video';
 import { YouTubePlayList } from '../classes/Playlist';
 import { InfoData, StreamInfoData } from './constants';
 import { URL, URLSearchParams } from 'node:url';
+import { parseAudioFormats } from '../stream';
 
 interface InfoOptions {
     htmldata?: boolean;
@@ -159,6 +160,7 @@ export async function video_basic_info(url: string, options: InfoOptions = {}): 
     const vid = player_response.videoDetails;
 
     let discretionAdvised = false;
+    let upcoming = false;
     if (player_response.playabilityStatus.status !== 'OK') {
         if (player_response.playabilityStatus.status === 'CONTENT_CHECK_REQUIRED') {
             if (options.htmldata)
@@ -179,7 +181,8 @@ export async function video_basic_info(url: string, options: InfoOptions = {}): 
             const updatedValues = await acceptViewerDiscretion(vid.videoId, cookieJar, body, true);
             player_response.streamingData = updatedValues.streamingData;
             initial_response.contents.twoColumnWatchNextResults.secondaryResults = updatedValues.relatedVideos;
-        } else
+        } else if (player_response.playabilityStatus.status === 'LIVE_STREAM_OFFLINE') upcoming = true;
+        else
             throw new Error(
                 `While getting info from url\n${
                     player_response.playabilityStatus.errorScreen.playerErrorMessageRenderer?.reason.simpleText ??
@@ -212,15 +215,27 @@ export async function video_basic_info(url: string, options: InfoOptions = {}): 
     if (musicInfo) {
         musicInfo.forEach((x: any) => {
             if (!x.metadataRowRenderer) return;
-            if (x.metadataRowRenderer.title.simpleText.toLowerCase() === 'song') {
+            const title = x.metadataRowRenderer.title.simpleText ?? x.metadataRowRenderer.title.runs[0].text;
+            if (title.toLowerCase() === 'song') {
                 music.push({});
                 music[music.length - 1].song =
                     x.metadataRowRenderer.contents[0].simpleText ?? x.metadataRowRenderer.contents[0]?.runs?.[0]?.text;
             } else if (music.length === 0) return;
             else
-                music[music.length - 1][x.metadataRowRenderer.title.simpleText.toLowerCase()] =
+                music[music.length - 1][title.toLowerCase()] =
                     x.metadataRowRenderer.contents[0].simpleText ?? x.metadataRowRenderer.contents[0]?.runs?.[0]?.text;
         });
+    }
+    let upcomingDate;
+    if (upcoming) {
+        if (microformat.liveBroadcastDetails.startTimestamp)
+            upcomingDate = new Date(microformat.liveBroadcastDetails.startTimestamp);
+        else {
+            const timestamp =
+                player_response.playabilityStatus.liveStreamability.liveStreamabilityRenderer.offlineSlate
+                    .liveStreamOfflineSlateRenderer.scheduledStartTime;
+            upcomingDate = new Date(parseInt(timestamp) * 1000);
+        }
     }
     const video_details = new YouTubeVideo({
         id: vid.videoId,
@@ -229,6 +244,7 @@ export async function video_basic_info(url: string, options: InfoOptions = {}): 
         duration: Number(vid.lengthSeconds),
         duration_raw: parseSeconds(vid.lengthSeconds),
         uploadedAt: microformat.publishDate,
+        upcoming: upcomingDate,
         thumbnails: vid.thumbnail.thumbnails,
         channel: {
             name: vid.author,
@@ -253,8 +269,11 @@ export async function video_basic_info(url: string, options: InfoOptions = {}): 
         discretionAdvised,
         music
     });
-    const format = player_response.streamingData.formats ?? [];
-    format.push(...(player_response.streamingData.adaptiveFormats ?? []));
+    let format = [];
+    if (!upcoming) {
+        format.push(...(player_response.streamingData.formats ?? []));
+        format.push(...(player_response.streamingData.adaptiveFormats ?? []));
+    }
     const LiveStreamData = {
         isLive: video_details.live,
         dashManifestUrl: player_response.streamingData?.dashManifestUrl ?? null,
@@ -303,6 +322,7 @@ export async function video_stream_info(url: string, options: InfoOptions = {}):
         .split(/;\s*(var|const|let)\s/)[0];
     if (!player_data) throw new Error('Initial Player Response Data is undefined.');
     const player_response = JSON.parse(player_data);
+    let upcoming = false;
     if (player_response.playabilityStatus.status !== 'OK') {
         if (player_response.playabilityStatus.status === 'CONTENT_CHECK_REQUIRED') {
             if (options.htmldata)
@@ -333,7 +353,8 @@ export async function video_stream_info(url: string, options: InfoOptions = {}):
                 false
             );
             player_response.streamingData = updatedValues.streamingData;
-        } else
+        } else if (player_response.playabilityStatus.status === 'LIVE_STREAM_OFFLINE') upcoming = true;
+        else
             throw new Error(
                 `While getting info from url\n${
                     player_response.playabilityStatus.errorScreen.playerErrorMessageRenderer?.reason.simpleText ??
@@ -347,20 +368,26 @@ export async function video_stream_info(url: string, options: InfoOptions = {}):
         url: `https://www.youtube.com/watch?v=${player_response.videoDetails.videoId}`,
         durationInSec: (duration < 0 ? 0 : duration) || 0
     };
-    const format = player_response.streamingData.formats ?? [];
-    format.push(...(player_response.streamingData.adaptiveFormats ?? []));
+    let format = [];
+    if (!upcoming) {
+        format.push(...(player_response.streamingData.formats ?? []));
+        format.push(...(player_response.streamingData.adaptiveFormats ?? []));
+    }
 
     const LiveStreamData = {
         isLive: player_response.videoDetails.isLiveContent,
         dashManifestUrl: player_response.streamingData?.dashManifestUrl ?? null,
         hlsManifestUrl: player_response.streamingData?.hlsManifestUrl ?? null
     };
-    return await decipher_info({
-        LiveStreamData,
-        html5player,
-        format,
-        video_details
-    });
+    return await decipher_info(
+        {
+            LiveStreamData,
+            html5player,
+            format,
+            video_details
+        },
+        true
+    );
 }
 /**
  * Function to convert seconds to [hour : minutes : seconds] format
@@ -404,21 +431,24 @@ export async function video_info(url: string, options: InfoOptions = {}): Promis
 /**
  * Function uses data from video_basic_info and deciphers it if it contains signatures.
  * @param data Data - {@link InfoData}
+ * @param audio_only `boolean` - To decipher only audio formats only.
  * @returns Deciphered Video Info {@link InfoData}
  */
-export async function decipher_info<T extends InfoData | StreamInfoData>(data: T): Promise<T> {
+export async function decipher_info<T extends InfoData | StreamInfoData>(
+    data: T,
+    audio_only: boolean = false
+): Promise<T> {
     if (
         data.LiveStreamData.isLive === true &&
         data.LiveStreamData.dashManifestUrl !== null &&
         data.video_details.durationInSec === 0
     ) {
         return data;
-    } else if (data.format[0].signatureCipher || data.format[0].cipher) {
+    } else if (data.format.length > 0 && (data.format[0].signatureCipher || data.format[0].cipher)) {
+        if (audio_only) data.format = parseAudioFormats(data.format);
         data.format = await format_decipher(data.format, data.html5player);
         return data;
-    } else {
-        return data;
-    }
+    } else return data;
 }
 /**
  * Gets YouTube playlist info from a playlist url.
@@ -431,7 +461,10 @@ export async function decipher_info<T extends InfoData | StreamInfoData>(data: T
  * ```
  * @param url Playlist URL
  * @param options Playlist Info Options
- * - `boolean` incomplete : If set to true, parses playlist with hidden videos.
+ * - `boolean` incomplete : When this is set to `false` (default) this function will throw an error
+ *                          if the playlist contains hidden videos.
+ *                          If it is set to `true`, it parses the playlist skipping the hidden videos,
+ *                          only visible videos are included in the resulting {@link YouTubePlaylist}.
  *
  * @returns YouTube Playlist
  */
@@ -494,6 +527,9 @@ export function getPlaylistVideos(data: any, limit = Infinity): YouTubeVideo[] {
                 duration_raw: info.lengthText?.simpleText ?? '0:00',
                 thumbnails: info.thumbnail.thumbnails,
                 title: info.title.runs[0].text,
+                upcoming: info.upcomingEventData?.startTime
+                    ? new Date(parseInt(info.upcomingEventData.startTime) * 1000)
+                    : undefined,
                 channel: {
                     id: info.shortBylineText.runs[0].navigationEndpoint.browseEndpoint.browseId || undefined,
                     name: info.shortBylineText.runs[0].text || undefined,
@@ -690,11 +726,7 @@ function getNormalPlaylist(response: any, body: any): YouTubePlayList {
                       author.videoOwnerRenderer.navigationEndpoint.commandMetadata.webCommandMetadata.url ||
                       author.videoOwnerRenderer.navigationEndpoint.browseEndpoint.canonicalBaseUrl
                   }`,
-                  icon: author.videoOwnerRenderer.thumbnail.thumbnails.length
-                      ? author.videoOwnerRenderer.thumbnail.thumbnails[
-                            author.videoOwnerRenderer.thumbnail.thumbnails.length - 1
-                        ].url
-                      : null
+                  icons: author.videoOwnerRenderer.thumbnail.thumbnails ?? []
               }
             : {},
         thumbnail: data.thumbnailRenderer.playlistVideoThumbnailRenderer?.thumbnail.thumbnails.length
@@ -722,6 +754,8 @@ function getWatchPlaylistVideos(data: any, limit = Infinity): YouTubeVideo[] {
                 duration_raw: info.lengthText?.simpleText ?? '0:00',
                 thumbnails: info.thumbnail.thumbnails,
                 title: info.title.simpleText,
+                upcoming:
+                    info.thumbnailOverlays[0].thumbnailOverlayTimeStatusRenderer.style === 'UPCOMING' || undefined,
                 channel: {
                     id: channel_info.navigationEndpoint.browseEndpoint.browseId || undefined,
                     name: channel_info.text || undefined,

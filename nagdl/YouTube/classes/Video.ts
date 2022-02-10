@@ -41,6 +41,10 @@ interface VideoOptions {
      */
     uploadedAt?: string;
     /**
+     * If the video is upcoming or a premiere that isn't currently live, this will contain the premiere date, for watch page playlists this will be true, it defaults to undefined
+     */
+    upcoming?: Date | true;
+    /**
      * YouTube Views
      */
     views: number;
@@ -121,6 +125,10 @@ export class YouTubeVideo implements Song {
      */
     uploadedAt?: string;
     /**
+     * If the video is upcoming or a premiere that isn't currently live, this will contain the premiere date, for watch page playlists this will be true, it defaults to undefined
+     */
+    upcoming?: Date | true;
+    /**
      * YouTube Views
      */
     views: number;
@@ -178,6 +186,7 @@ export class YouTubeVideo implements Song {
         this.durationInSec = (data.duration < 0 ? 0 : data.duration) || 0;
         this.duration = new Duration(this.durationInSec);
         this.uploadedAt = data.uploadedAt || undefined;
+        this.upcoming = data.upcoming;
         this.views = parseInt(data.views) || 0;
         const thumbnails = [];
         for (const thumb of data.thumbnails) {
